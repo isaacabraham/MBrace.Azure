@@ -22,7 +22,7 @@ type ClusterManager =
         Logger                  : ISystemLogger
         Resources               : ResourceRegistry
         WorkerManager           : WorkerManager
-        WorkQueue               : WorkItemQueue
+        WorkQueue               : BlobStorageWorkItemQueue
         ProcessManager          : CloudProcessManager
         AssemblyManager         : StoreAssemblyManager
         LocalLoggerManager      : ILocalSystemLogManager
@@ -49,9 +49,6 @@ type ClusterManager =
         member r.RuntimeSystemLogManager  = r.SystemLoggerManager :> _
         member r.LocalSystemLogManager    = r.LocalLoggerManager
 
-    /// Initializes a topic maintenance agent in the local process
-    member r.InitTopicMonitor() = TopicMonitor.Create(r.ClusterId, r.WorkerManager, r.Logger)
-
     /// Resets the cluster store state with supplied parameters
     member r.ResetCluster(?deleteQueues : bool, ?deleteRuntimeState : bool, ?deleteLogs : bool, ?deleteUserData : bool, 
                                 ?deleteAssemblyData : bool, ?force : bool, ?reactivate : bool) = async {
@@ -75,7 +72,7 @@ type ClusterManager =
                 return! Async.Raise exc
             
         if deleteQueues then 
-            logger.LogWarningf "Deleting Queues %A, %A." clusterId.WorkItemQueue clusterId.RuntimeTable
+            logger.LogWarningf "Deleting Queues %A." clusterId.RuntimeTable
             do! clusterId.ClearRuntimeQueues()
             
         if deleteRuntimeState then 
@@ -115,7 +112,7 @@ type ClusterManager =
         match systemLogger with Some l -> logger.AttachLogger l |> ignore | None -> ()
 
         let clusterId = ClusterId.Activate configuration
-        logger.LogInfof "Activating cluster configuration:\n\tStorage: %s\n\tServiceBus: %s\n\tConfiguration Hash: %s" configuration.StorageAccount configuration.ServiceBusAccount clusterId.Hash
+        logger.LogInfof "Activating cluster configuration:\n\tStorage: %s\n\tConfiguration Hash: %s" configuration.StorageAccount clusterId.Hash
 
         logger.LogInfof "Initializing Azure store entities"
         do! clusterId.InitializeAllStoreResources(maxRetries = 20, retryInterval = 3000)
@@ -124,9 +121,9 @@ type ClusterManager =
         let fileStore = BlobStore.Create(clusterId.StorageAccount, defaultContainer = clusterId.UserDataContainer)
         let atomProvider = TableAtomProvider.Create(clusterId.StorageAccount, defaultTable = clusterId.UserDataTable)
         let dictionaryProvider = TableDictionaryProvider.Create(clusterId.StorageAccount)
-        let queueProvider = ServiceBusQueueProvider.Create(clusterId.ServiceBusAccount)
         let serializer = FsPicklerBinarySerializer()
         let jsonSerializer = FsPicklerJsonSerializer()
+        let queueProvider = StorageQueueProvider(clusterId.StorageAccount.ConnectionString)
 
         let cloudValueProvider =
             let cloudValueStore = (fileStore :> ICloudFileStore).WithDefaultDirectory clusterId.CloudValueContainer
@@ -143,15 +140,16 @@ type ClusterManager =
             yield cloudValueProvider :> ICloudValueProvider
             yield atomProvider :> ICloudAtomProvider
             yield dictionaryProvider :> ICloudDictionaryProvider
-            yield queueProvider :> ICloudQueueProvider
             yield serializer :> ISerializer
+            yield queueProvider :> ICloudQueueProvider
             yield jsonSerializer :> ITextSerializer
         }
 
         logger.LogInfo "Creating worker manager"
         let workerManager = WorkerManager.Create(clusterId, logger)
+        //TODO
         logger.LogInfo "Creating work item manager"
-        let! workManager   = WorkItemQueue.Create(clusterId, logger)
+        let workManager   = BlobStorageWorkItemQueue()
         logger.LogInfo "Creating task manager"
         let processManager   = CloudProcessManager.Create(clusterId, logger)
         logger.LogInfo "Creating assembly manager"

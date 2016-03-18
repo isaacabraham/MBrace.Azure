@@ -10,14 +10,21 @@ open MBrace.Core
 open MBrace.Azure
 open System
 
-let config = Configuration.FromEnvironmentVariables()
+let config = Configuration("UseDevelopmentStorage=true;")
+config.WorkItemQueue <- "mbworkitem"
 
-AzureWorker.LocalExecutable <- __SOURCE_DIRECTORY__ + "/../../bin/mbrace.azureworker.exe"
-let cluster = AzureCluster.InitOnCurrentMachine(config, workerCount = 4, logger = ConsoleLogger(true), logLevel = LogLevel.Debug)
+//AzureWorker.LocalExecutable <- __SOURCE_DIRECTORY__ + "/../../bin/mbrace.azureworker.exe"
+//let cluster = AzureCluster.InitOnCurrentMachine(config, workerCount = 4, logger = ConsoleLogger(true), logLevel = LogLevel.Debug)
+let cluster = AzureCluster.Connect(config)
 //let cluster = AzureCluster.Connect(config, logger = ConsoleLogger(true), logLevel = LogLevel.Debug)
-cluster.Reset(deleteUserData = true, deleteAssemblyData = true, force = true)
-cluster.KillAllLocalWorkers()
-cluster.Workers
+//cluster.Reset(deleteUserData = true, deleteAssemblyData = true, force = true)
+//cluster.KillAllLocalWorkers()
+cluster.ShowWorkers()
+
+
+let p = cluster.CreateProcess (cloud { return "Hello world!" })
+
+p.ShowInfo()
 
 let ct = cluster.CreateProcess (cloud { return! Cloud.ParallelEverywhere(Cloud.CurrentWorker) })
 

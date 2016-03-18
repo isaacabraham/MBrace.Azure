@@ -19,7 +19,6 @@ module WorkerSubscription =
             WorkItemEvaluator : ICloudWorkItemEvaluator
             StoreLogger : IRemoteSystemLogger
             StoreLoggerSubscription : IDisposable
-            TopicMonitor : IDisposable
         }
 
         member s.Dispose() =
@@ -27,7 +26,6 @@ module WorkerSubscription =
             Disposable.dispose s.WorkItemEvaluator
             Disposable.dispose s.StoreLoggerSubscription
             Disposable.dispose s.StoreLogger
-            Disposable.dispose s.TopicMonitor
 
     let initialize (config : Configuration) (workerId : string) (logger : ISystemLogger)
                     (heartbeatInterval : TimeSpan) (heartbeatThreshold : TimeSpan)
@@ -71,8 +69,6 @@ module WorkerSubscription =
                     logger.LogInfo "Initializing local workItem evaluator"
                     LocalWorkItemEvaluator.Create(runtimeManager, workerId) :> ICloudWorkItemEvaluator
 
-            logger.LogInfo "Creating topic monitor agent"
-            let! topicMonitorDisposer = clusterManager.InitTopicMonitor()
             logger.LogInfo "Creating worker agent"
             let! agent = WorkerAgent.Create(runtimeManager, workerId, jobEvaluator, maxConcurrentWorkItems, submitPerformanceMetrics = true, 
                                                 heartbeatInterval = heartbeatInterval, heartbeatThreshold = heartbeatThreshold)
@@ -86,6 +82,5 @@ module WorkerSubscription =
                 StoreLoggerSubscription = storeLoggerSubscription
                 StoreLogger = storeLogger
                 WorkItemEvaluator = jobEvaluator
-                TopicMonitor = topicMonitorDisposer
             }
         }

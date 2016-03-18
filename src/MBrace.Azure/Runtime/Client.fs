@@ -117,8 +117,6 @@ type AzureCluster private (manager : ClusterManager, faultPolicy : FaultPolicy o
 
     /// Gets the Azure storage account name used by the cluster
     member this.StorageAccount = manager.Configuration.StorageAccount
-    /// Gets the Azure service bus account name used by the cluster
-    member this.ServiceBusAccount = manager.Configuration.ServiceBusAccount
     /// Cluster configuration hash identifier
     member this.Hash = hashId
 
@@ -275,8 +273,8 @@ type AzureCluster private (manager : ClusterManager, faultPolicy : FaultPolicy o
     /// <param name="faultPolicy">The default fault policy to be used by the cluster. Defaults to NoRetry.</param>
     /// <param name="logger">Custom logger to attach in client.</param>
     /// <param name="logLevel">Logger verbosity level.</param>
-    static member Connect(storageConnectionString : string, serviceBusConnectionString : string,  ?clientId : string, ?faultPolicy : FaultPolicy, ?logger : ISystemLogger, ?logLevel : LogLevel) : AzureCluster = 
-        AzureCluster.Connect(new Configuration(storageConnectionString, serviceBusConnectionString), ?clientId = clientId, ?faultPolicy = faultPolicy, ?logger = logger, ?logLevel = logLevel)
+    static member Connect(storageConnectionString : string, ?clientId : string, ?faultPolicy : FaultPolicy, ?logger : ISystemLogger, ?logLevel : LogLevel) : AzureCluster = 
+        AzureCluster.Connect(new Configuration(storageConnectionString), ?clientId = clientId, ?faultPolicy = faultPolicy, ?logger = logger, ?logLevel = logLevel)
 
     /// <summary>
     ///     Initialize a new local runtime instance with supplied worker count and return a handle.

@@ -6,9 +6,8 @@ open MBrace.Azure.Runtime
 
 /// Azure Configuration Builder. Used to specify MBrace.Azure cluster storage configuration.
 [<AutoSerializable(true); Sealed; NoEquality; NoComparison>]
-type Configuration(storageConnectionString : string, serviceBusConnectionString : string) =
+type Configuration(storageConnectionString : string) =
     static let storageEnv = "AzureStorageConnectionString"
-    static let serviceBusEnv = "AzureServiceBusConnectionString"
     static let getEnv (envName:string) =
         let aux found target =
             if String.IsNullOrWhiteSpace found then Environment.GetEnvironmentVariable(envName, target)
@@ -19,28 +18,18 @@ type Configuration(storageConnectionString : string, serviceBusConnectionString 
     let mutable _storageAccountName = null
     let mutable _storageConnectionString = null
 
-    let mutable _serviceBusAccountName = null
-    let mutable _serviceBusConnectionString = null
-
     let parseStorage conn =
         let account = AzureStorageAccount.Parse conn
         _storageConnectionString <- account.ConnectionString
         _storageAccountName <- account.AccountName
 
-    let parseServiceBus conn =
-        let account = AzureServiceBusAccount.Parse conn
-        _serviceBusConnectionString <- account.ConnectionString
-        _serviceBusAccountName <- account.AccountName
-
     do
         parseStorage storageConnectionString
-        parseServiceBus serviceBusConnectionString
 
     let mutable version = typeof<Configuration>.Assembly.GetName().Version
 
-    // Default Service Bus Configuration
+    // Default Queue Storage Configuration
     let mutable workItemQueue        = "MBraceWorkItemQueue"
-    let mutable workItemTopic        = "MBraceWorkItemTopic"
 
     // Default Blob Storage Containers
     let mutable runtimeContainer    = "mbraceruntimedata"
@@ -74,35 +63,16 @@ type Configuration(storageConnectionString : string, serviceBusConnectionString 
 
     /// Azure Storage account name
     member __.StorageAccount = _storageAccountName
-    /// Azure ServiceBus account name
-    member __.ServiceBusAccount = _serviceBusAccountName
 
     /// Azure Storage connection string.
     member __.StorageConnectionString
         with get () = _storageConnectionString
         and set scs = parseStorage scs
 
-    /// Azure Service Bus connection string.
-    member __.ServiceBusConnectionString
-        with get () = serviceBusConnectionString
-        and set sbcs = parseServiceBus sbcs
-
-
-    // #region Service Bus
-
-    /// Service Bus work item queue used by the runtime.
+    /// Storage work item queue used by the runtime.
     member __.WorkItemQueue
         with get () = workItemQueue
         and set rq = Validate.queueName rq ; workItemQueue <- rq
-
-    /// Service Bus work item topic used by the runtime.
-    member __.WorkItemTopic
-        with get () = workItemTopic
-        and set rt = Validate.queueName rt ; workItemTopic <- rt
-
-
-    // #region Blob Storage
-
 
     /// Azure Storage container used by the runtime.
     member __.RuntimeContainer
@@ -153,18 +123,6 @@ type Configuration(storageConnectionString : string, serviceBusConnectionString 
             Environment.SetEnvironmentVariable(storageEnv, conn, EnvironmentVariableTarget.User)
             Environment.SetEnvironmentVariable(storageEnv, conn, EnvironmentVariableTarget.Process)
 
-    /// Gets or sets or the local environment Azure service bus connection string
-    static member EnvironmentServiceBusConnectionString
-        with get () = 
-            match getEnv serviceBusEnv with
-            | null | "" -> invalidOp "unset Azure ServiceBus connection string environment variable."
-            | conn -> conn
-
-        and set conn =
-            let _ = AzureServiceBusAccount.Parse conn
-            Environment.SetEnvironmentVariable(serviceBusEnv, conn, EnvironmentVariableTarget.User)
-            Environment.SetEnvironmentVariable(serviceBusEnv, conn, EnvironmentVariableTarget.Process)
-
     /// Creates a configuration object by reading connection string information from the local environment variables.
     static member FromEnvironmentVariables() =
-        new Configuration(Configuration.EnvironmentStorageConnectionString, Configuration.EnvironmentServiceBusConnectionString)
+        new Configuration(Configuration.EnvironmentStorageConnectionString)

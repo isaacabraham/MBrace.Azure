@@ -28,8 +28,8 @@ module Validate =
         elif containerName.[0] = '-' then exn ()
 
     let queueName (queueName : string) = 
-        let exn () = invalidArg "queueName" (sprintf "Invalid queue name %A. Name should contain only alphanumeric characters or '-','_','/' delimiters." queueName)
-        if not <| validate alphaNumericDashes queueName then exn ()
+        let exn () = invalidArg "queueName" (sprintf "Invalid queue name %A. Name should contain only alphanumeric characters." queueName)
+        if not <| validate alphaNumeric queueName then exn ()
                 
     let subscriptionName (subscriptionName : string) = 
         let exn () = invalidArg "subscriptionName" (sprintf "Invalid subscription name %A. Name length should be less than 50, containing only alphanumeric characters or '-','_','/' delimiters." subscriptionName)

@@ -425,7 +425,7 @@ module private ManagementImpl =
             | Choice1Of2 service when service.Properties.ExtendedProperties |> isMBraceAsset ->
                 let storageConnectionString = service.Properties.ExtendedProperties.["StorageConnectionString"]
                 let serviceBusConnectionString = service.Properties.ExtendedProperties.["ServiceBusConnectionString"]
-                let config = new Configuration(storageConnectionString, serviceBusConnectionString)
+                let config = new Configuration(storageConnectionString)
                 return Some config
             | _ ->
                 return None
@@ -624,7 +624,7 @@ type DeploymentManager private (pubSettings : PubSettingsClient, defaultRegion :
         let clusterLabel = defaultArg serviceLabel (sprintf "MBrace cluster %A, package %s"  serviceName (defaultArg versionInfo "custom"))
         let! deployInfo = Deployment.prepareMBraceServiceDeployment logger serviceName clusterLabel region packagePath config storageAccountName storageConnectionString serviceBusNamespace serviceBusConnectionString client
         do! Deployment.beginDeploy DeploymentSlot.Production deployInfo client
-        return new Configuration(storageConnectionString, serviceBusConnectionString)
+        return new Configuration(storageConnectionString)
     }
 
     /// <summary>

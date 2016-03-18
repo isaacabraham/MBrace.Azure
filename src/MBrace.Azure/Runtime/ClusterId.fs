@@ -5,8 +5,6 @@ open System.Collections.Concurrent
 open System.Runtime.Serialization
 open System.Text
 
-open Microsoft.ServiceBus
-open Microsoft.ServiceBus.Messaging
 open Microsoft.WindowsAzure.Storage
 
 open Nessos.FsPickler
@@ -26,13 +24,9 @@ type ClusterId =
         Version : string
         /// Azure storage account name.
         StorageAccount : AzureStorageAccount
-        /// Service Bus hostname.
-        ServiceBusAccount : AzureServiceBusAccount
 
-        /// Service Bus Queue.
+        /// Storage Queue name
         WorkItemQueue : string
-        /// Service Bus Topic.
-        WorkItemTopic : string
 
         /// Runtime blob container.
         RuntimeContainer : string
@@ -55,7 +49,7 @@ type ClusterId =
         OptimizeClosureSerialization : bool
     }
 
-    member this.Id = sprintf "{Storage = \"%s\"; ServiceBus = \"%s\"}" this.StorageAccount.AccountName this.ServiceBusAccount.AccountName
+    member this.Id = sprintf "{Storage = \"%s\"}" this.StorageAccount.AccountName
     interface IRuntimeId with member this.Id = this.Id
 
     member this.Hash = FsPickler.ComputeHash(this).Hash |> Convert.ToBase64String
@@ -100,12 +94,10 @@ type ClusterId =
     }
 
     member this.ClearRuntimeQueues() = async {
+        let queueRef = this.StorageAccount.QueueClient.GetQueueReference this.WorkItemQueue
         do!
-            [|
-                Async.AwaitTaskCorrect(this.ServiceBusAccount.NamespaceManager.DeleteQueueAsync this.WorkItemQueue)
-                Async.AwaitTaskCorrect(this.ServiceBusAccount.NamespaceManager.DeleteTopicAsync this.WorkItemTopic)
-            |]
-            |> Async.Parallel
+            queueRef.DeleteIfExistsAsync()
+            |> Async.AwaitTaskCorrect
             |> Async.Ignore
     }
 
@@ -152,11 +144,8 @@ type ClusterId =
         {
             Version                         = version.ToString(4)
             StorageAccount                  = AzureStorageAccount.Parse configuration.StorageConnectionString
-            ServiceBusAccount               = AzureServiceBusAccount.Parse configuration.ServiceBusConnectionString
 
             WorkItemQueue                   = appendVersionAndSuffixId configuration.WorkItemQueue
-            WorkItemTopic                   = appendVersionAndSuffixId configuration.WorkItemTopic
-
             RuntimeContainer                = appendVersionAndSuffixId configuration.RuntimeContainer
             VagabondContainer               = configuration.AssemblyContainer
             CloudValueContainer             = appendVersionAndSuffixId configuration.CloudValueContainer

@@ -19,7 +19,7 @@ open MBrace.Core.Tests
 module Utils =
 
     let mkRemoteConfig () = Configuration.FromEnvironmentVariables()
-    let mkEmulatorConfig () = new Configuration("UseDevelopmentStorage=true", Configuration.EnvironmentServiceBusConnectionString)
+    let mkEmulatorConfig () = new Configuration("UseDevelopmentStorage=true")
 
 
 type ClusterSession(config : MBrace.Azure.Configuration, localWorkerCount : int, ?heartbeatThreshold : TimeSpan) =

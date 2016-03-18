@@ -120,7 +120,7 @@ type ``Vagabond Azure Tests (FSI)``(config : Configuration, localWorkerCount : i
         fsi.EvalInteraction "open MBrace.Flow"
         fsi.EvalInteraction "open MBrace.Azure"
         fsi.EvalInteraction "open MBrace.Azure.Tests"
-        fsi.EvalInteraction <| sprintf "let config = new Configuration(%A, %A)" config.StorageConnectionString config.ServiceBusConnectionString
+        fsi.EvalInteraction <| sprintf "let config = new Configuration(%A)" config.StorageConnectionString
         fsi.EvalInteraction <| sprintf "let session = new ClusterSession(config, %d)" localWorkerCount
         fsi.EvalInteraction "session.Start()"
         fsi.EvalInteraction "let cluster = session.Cluster"

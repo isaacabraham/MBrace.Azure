@@ -21,16 +21,12 @@ type private AzureArguments =
     | Working_Directory of string
     // Connection string parameters
     | [<Mandatory>][<AltCommandLine("-s")>] Storage_Connection_String of string
-    | [<Mandatory>][<AltCommandLine("-b")>] Service_Bus_Connection_string of string
     // Cluster configuration parameters
     | Force_Version of string
     | Suffix_Id of uint16
     | Use_Version_Suffix of bool
     | Use_Suffix_Id of bool
     | Optimize_Closure_Serialization of bool
-    // ServiceBus
-    | Runtime_Queue of string
-    | Runtime_Topic of string
     // Blob Storage
     | Runtime_Container of string
     | User_Data_Container of string
@@ -52,14 +48,11 @@ type private AzureArguments =
             | Working_Directory _ -> "Specify the working directory for the worker."
             | Worker_Id _ -> "Specify worker name identifier."
             | Storage_Connection_String _ -> "Azure Storage connection string."
-            | Service_Bus_Connection_string _ -> "Azure ServiceBus connection string."
             | Optimize_Closure_Serialization _ -> "Specifies whether cluster should implement closure serialization optimizations. Defaults to true."
             | Force_Version _ -> "Forces an MBrace.Azure version number identifier. Defaults to compiled version."
             | Suffix_Id _ -> "User-supplied suffix identifier for Azure store resources. Defaults to 0."
             | Use_Version_Suffix _ -> "Enables or disables version suffix in store resources. Defaults to true."
             | Use_Suffix_Id _ -> "Enables or disables user-supplied suffix identifier in store resources. Defaults to true."
-            | Runtime_Queue _ -> "Specifies the work item queue name in the ServiceBus."
-            | Runtime_Topic _ -> "Specifies the work item topic name in the ServiceBus."
             | Runtime_Container _ -> "Specifies the blob container name used for persisting MBrace cluster data."
             | User_Data_Container _ -> "Specifies the blob container name used for persisting MBrace user data."
             | Assembly_Container _ -> "Specifies the blob container name used for persisting Assembly dependencies."
@@ -67,7 +60,6 @@ type private AzureArguments =
             | Runtime_Table _ -> "Specifies the table name used for writing MBrace cluster entries."
             | Runtime_Logs_Table _ -> "Specifies the table name used for writing MBrace cluster system log entries."
             | User_Data_Table _ -> "Specifies the table name used for writing user logs."
-
 
 let private argParser = ArgumentParser.Create<AzureArguments>()
 
@@ -112,7 +104,6 @@ type ArgumentConfiguration =
             | None -> ()
             | Some config ->
                 yield Storage_Connection_String config.StorageConnectionString
-                yield Service_Bus_Connection_string config.ServiceBusConnectionString
 
                 yield Force_Version config.Version
                 yield Suffix_Id config.SuffixId
@@ -120,8 +111,8 @@ type ArgumentConfiguration =
                 yield Use_Suffix_Id config.UseSuffixId
                 yield Optimize_Closure_Serialization config.OptimizeClosureSerialization
 
-                yield Runtime_Queue config.WorkItemQueue
-                yield Runtime_Topic config.WorkItemTopic
+//                yield Runtime_Queue config.WorkItemQueue
+//                yield Runtime_Topic config.WorkItemTopic
 
                 yield Runtime_Container config.RuntimeContainer
                 yield User_Data_Container config.UserDataContainer
@@ -148,17 +139,16 @@ type ArgumentConfiguration =
         let workingDirectory = parseResult.TryPostProcessResult(<@ Working_Directory @>, Path.GetFullPath)
 
         let sacc = parseResult.PostProcessResult(<@ Storage_Connection_String @>, AzureStorageAccount.Parse)
-        let bacc = parseResult.PostProcessResult(<@ Service_Bus_Connection_string @>, AzureServiceBusAccount.Parse)
 
-        let config = new Configuration(sacc.ConnectionString, bacc.ConnectionString)
+        let config = new Configuration(sacc.ConnectionString)
         parseResult.IterResult(<@ Force_Version @>, fun v -> config.Version <- v)
         parseResult.IterResult(<@ Suffix_Id @>, fun id -> config.SuffixId <- id)
         parseResult.IterResult(<@ Use_Version_Suffix @>, fun b -> config.UseVersionSuffix <- b)
         parseResult.IterResult(<@ Use_Suffix_Id @>, fun b -> config.UseSuffixId <- b)
         parseResult.IterResult(<@ Optimize_Closure_Serialization @>, fun o -> config.OptimizeClosureSerialization <- o)
 
-        parseResult.IterResult(<@ Runtime_Queue @>, fun q -> config.WorkItemQueue <- q)
-        parseResult.IterResult(<@ Runtime_Topic @>, fun t -> config.WorkItemTopic <- t)
+//        parseResult.IterResult(<@ Runtime_Queue @>, fun q -> config.WorkItemQueue <- q)
+//        parseResult.IterResult(<@ Runtime_Topic @>, fun t -> config.WorkItemTopic <- t)
 
         parseResult.IterResult(<@ Runtime_Container @>, fun c -> config.RuntimeContainer <- c)
         parseResult.IterResult(<@ User_Data_Container @>, fun c -> config.UserDataContainer <- c)

@@ -9,6 +9,7 @@ open Microsoft.WindowsAzure.Storage.Table
 open Microsoft.WindowsAzure.Storage.Blob
 open Microsoft.ServiceBus
 open Microsoft.ServiceBus.Messaging
+open Microsoft.WindowsAzure.Storage.Queue
 
 [<AutoSerializable(false); NoEquality; NoComparison>]
 type private AzureStorageAccountData = 
@@ -18,6 +19,7 @@ type private AzureStorageAccountData =
         Account : CloudStorageAccount
         TableClient : CloudTableClient
         BlobClient : CloudBlobClient
+        QueueClient : CloudQueueClient
     }
 
 /// Azure Storace Account reference that does not leak connection string information to its serialization.
@@ -52,6 +54,8 @@ type AzureStorageAccount private (data : AzureStorageAccountData) =
     member __.TableClient = getLocalData().TableClient
     /// Azure blob client object
     member __.BlobClient = getLocalData().BlobClient
+    /// Azure queue client object
+    member __.QueueClient = getLocalData().QueueClient
 
     /// Creates a table reference for given name
     member __.GetTableReference(tableName : string) = __.TableClient.GetTableReference(tableName)
@@ -84,17 +88,20 @@ type AzureStorageAccount private (data : AzureStorageAccountData) =
             // init table client
             let tableClient = account.CreateCloudTableClient()
             tableClient.DefaultRequestOptions.RetryPolicy <- RetryPolicies.ExponentialRetry(TimeSpan.FromSeconds(3.), 10)
+            tableClient.DefaultRequestOptions.LocationMode <- Nullable RetryPolicies.LocationMode.PrimaryOnly
             // init blob client
             let blobClient = account.CreateCloudBlobClient()
             blobClient.DefaultRequestOptions.ParallelOperationThreadCount <- System.Nullable(min 64 (4 * System.Environment.ProcessorCount))
             blobClient.DefaultRequestOptions.SingleBlobUploadThresholdInBytes <- System.Nullable(1L <<< 23) // 8MB, possible ranges: 1..64MB, default 32MB
             blobClient.DefaultRequestOptions.MaximumExecutionTime <- Nullable<_>(TimeSpan.FromMinutes(20.))
             blobClient.DefaultRequestOptions.RetryPolicy <- RetryPolicies.ExponentialRetry(TimeSpan.FromSeconds(3.), 10)
+            // init queue client
+            let queueClient = account.CreateCloudQueueClient()
             // create local data record
             let data = 
                 { 
                     AccountName = account.Credentials.AccountName ; Account = account ; ConnectionString = connectionString 
-                    BlobClient = blobClient ; TableClient = tableClient    
+                    BlobClient = blobClient ; TableClient = tableClient; QueueClient = queueClient
                 }
 
             let data = localContainer.GetOrAdd(data.AccountName, data)
@@ -110,91 +117,3 @@ type AzureStorageAccount private (data : AzureStorageAccountData) =
         match AzureStorageAccount.TryParse connectionString with
         | None -> invalidArg "connectionString" (sprintf "Invalid Storage connection string '%s'" connectionString)
         | Some asa -> asa
-
-[<AutoSerializable(false); NoEquality; NoComparison>]
-type private ServiceBusAccountData = 
-    { 
-        ConnectionString : string
-        AccountName : string
-        NamespaceManager : NamespaceManager
-    }
-
-/// Azure ServiceBus Account reference that does not leak connection string information to its serialization.
-[<Sealed; DataContract; StructuredFormatDisplay("{StructuredFormatDisplay}")>]
-type AzureServiceBusAccount private (data: ServiceBusAccountData) =
-    static let localContainer = new ConcurrentDictionary<string, ServiceBusAccountData> ()
-    static let tryParse(connectionString : string) =
-        try
-            let nsm = NamespaceManager.CreateFromConnectionString connectionString
-            let _ = nsm.QueueExists "foobar" // force exception here in case of invalid connection string
-            let accountName = nsm.Address.ToString()
-            Choice1Of2 { ConnectionString = connectionString ; AccountName = accountName ; NamespaceManager = nsm }
-        with e -> Choice2Of2 e
-
-    [<DataMember(Name = "accountName")>]
-    let accountName = data.AccountName
-
-    [<IgnoreDataMember>]
-    let mutable localData : ServiceBusAccountData option = Some data
-
-    let getData() =
-        match localData with
-        | Some ld -> ld
-        | None ->
-            let mutable data = Unchecked.defaultof<_>
-            if localContainer.TryGetValue(accountName, &data) then
-                localData <- Some data
-                data
-            else
-                invalidOp <| sprintf "Could not resolve Azure storage account '%s' from current process." accountName
-
-    /// Account identifier
-    member __.AccountName = accountName
-    /// Namespace manager for Service Bus
-    member __.NamespaceManager = getData().NamespaceManager
-    /// Service bus connection string
-    member __.ConnectionString = getData().ConnectionString
-    /// Creates a Queue client instance
-    member __.CreateQueueClient(queue : string, mode : ReceiveMode) = QueueClient.CreateFromConnectionString(__.ConnectionString, queue, mode)
-    /// Creates a Subscription instance
-    member __.CreateSubscriptionClient(topic : string, name : string) = SubscriptionClient.CreateFromConnectionString(__.ConnectionString, topic, name)
-    /// Creates a Topic client
-    member __.CreateTopicClient(topic : string) = TopicClient.CreateFromConnectionString(__.ConnectionString, topic)
-
-    interface IComparable with
-        member __.CompareTo(other : obj) =
-            match other with
-            | :? AzureServiceBusAccount as asba -> compare accountName asba.AccountName
-            | _ -> invalidArg "other" "invalid comparand."
-
-    override __.Equals(other : obj) =
-        match other with
-        | :? AzureServiceBusAccount as asba -> accountName = asba.AccountName
-        | _ -> false
-
-    override __.GetHashCode() = hash accountName
-
-    member private __.StructuredFormatDisplay = sprintf "Azure Storage Account {%s}" accountName
-    override __.ToString() = __.StructuredFormatDisplay
-
-    /// <summary>
-    ///     Try creating an Azure service bus account reference using provided connection string.
-    /// </summary>
-    /// <param name="connectionString">Azure service bus connection string.</param>
-    static member TryParse(connectionString : string) =
-        match tryParse connectionString with
-        | Choice2Of2 _ -> None
-        | Choice1Of2 data ->
-            let data = localContainer.GetOrAdd(data.AccountName, data)
-            Some(new AzureServiceBusAccount(data))
-
-    /// <summary>
-    ///     Creates an Azure service bus account reference using provided connection string.
-    /// </summary>
-    /// <param name="connectionString">Azure service bus connection string.</param>
-    static member Parse(connectionString : string) =
-        match tryParse connectionString with
-        | Choice2Of2 e -> raise <| new ArgumentException(sprintf "Invalid ServiceBus connection string '%s'." connectionString, "connectionString", e)
-        | Choice1Of2 data ->
-            let data = localContainer.GetOrAdd(data.AccountName, data)
-            new AzureServiceBusAccount(data)

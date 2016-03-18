@@ -36,7 +36,7 @@ namespace MBrace.Azure.CloudService.WorkerRole
 
                 bool result = base.OnStart();
 
-                _config = new Configuration(storageConnectionString, serviceBusConnectionString);
+                _config = new Configuration(storageConnectionString);
                 _svc =
                     RoleEnvironment.IsEmulated ?
                     new WorkerService(_config, String.Format("computeEmulator-{0}", Guid.NewGuid().ToString("N").Substring(0,30))) :
@@ -78,7 +78,7 @@ namespace MBrace.Azure.CloudService.WorkerRole
                     {
                         string storageConnectionString = CloudConfigurationManager.GetSetting("MBrace.StorageConnectionString");
                         string serviceBusConnectionString = CloudConfigurationManager.GetSetting("MBrace.ServiceBusConnectionString");
-                        _config = new Configuration(storageConnectionString, serviceBusConnectionString);
+                        _config = new Configuration(storageConnectionString);
                         _svc.Stop();
                         _svc.Configuration = _config;
                         _svc.Start();
